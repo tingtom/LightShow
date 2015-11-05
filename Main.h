@@ -11,6 +11,17 @@ namespace LightShow
 	using namespace System::Data;
 	using namespace System::Drawing;
 
+	String ^GetActiveWindowTitle()
+	{
+		HWND handle = GetForegroundWindow();
+
+		wchar_t buffer[256];
+		if (GetWindowText(handle, buffer, 256) > 0)
+		{
+			return gcnew String(buffer);
+		}
+	}
+
 	public ref class Main : public System::Windows::Forms::Form
 	{
 	public:
@@ -18,18 +29,46 @@ namespace LightShow
 		{
 			InitializeComponent();
 			updateColour(0,0,0);
+
+			//
+			talk = new CROCCAT_Talk();
+			if (!talk->init_ryos_talk())
+			{
+				if (MessageBox::Show("Error", "Couldn't find roccat device", MessageBoxButtons::OK) == System::Windows::Forms::DialogResult::OK)
+					Close();
+			}
+
+			talk->set_ryos_kb_SDKmode(TRUE);
+			talk->turn_off_all_LEDS();
+
+			//bZone The effect zones are Ambient (0x00) and Event (0x01). Use Ambient when you have a low rate of updates. Use Event for fast paced updates. (When in doubt: use Event (0x01)).
+			//bEffect Off(0x00), On(0x01), Blinking(0x02), Breathing(0x03), Heartbeat(0x04).
+			//bSpeed no Change(0x00), Slow(0x01), Normal(0x02), Fast(0x03).
+			//colorR simple RED value 0x00 to 0xFF.
+			//colorG simple GREEN value 0x00 to 0xFF.
+			//colorB simple BLUE value 0x00 to 0xFF.
+
+			talk->Set_LED_RGB(0x01, 0x01, 0x02, 0xFF, 0x00, 0x00);
 		}
 
 	protected:
 		~Main()
 		{
+			//t->RestoreLEDRGB();
+			talk->set_ryos_kb_SDKmode(FALSE);
+			
+			if (talk)
+				delete talk;
+
 			if (components)
-			{
 				delete components;
-			}
 		}
 
-	private: 
+	private:
+		Color colour;
+		bool save;
+		CROCCAT_Talk *talk;
+
 		System::Windows::Forms::ListBox^  listBox1;
 		System::Windows::Forms::TextBox^  name;
 
@@ -40,15 +79,14 @@ namespace LightShow
 		System::Windows::Forms::Button^  button1;
 		System::Windows::Forms::Button^  button2;
 		System::Windows::Forms::Button^  button3;
-	private: System::Windows::Forms::TextBox^  rr;
-	private: System::Windows::Forms::TextBox^  gg;
-	private: System::Windows::Forms::TextBox^  bb;
-
-
-
+		System::Windows::Forms::TextBox^  rr;
+		System::Windows::Forms::TextBox^  gg;
+		System::Windows::Forms::TextBox^  bb;
+		System::Windows::Forms::Timer^  timer1;
+		System::ComponentModel::IContainer^  components;
 
 	private:
-		System::ComponentModel::Container ^components;
+
 
 #pragma region Windows Form Designer generated code
 		/// <summary>
@@ -57,6 +95,7 @@ namespace LightShow
 		/// </summary>
 		void InitializeComponent(void)
 		{
+			this->components = (gcnew System::ComponentModel::Container());
 			this->listBox1 = (gcnew System::Windows::Forms::ListBox());
 			this->name = (gcnew System::Windows::Forms::TextBox());
 			this->label1 = (gcnew System::Windows::Forms::Label());
@@ -68,6 +107,7 @@ namespace LightShow
 			this->rr = (gcnew System::Windows::Forms::TextBox());
 			this->gg = (gcnew System::Windows::Forms::TextBox());
 			this->bb = (gcnew System::Windows::Forms::TextBox());
+			this->timer1 = (gcnew System::Windows::Forms::Timer(this->components));
 			this->SuspendLayout();
 			// 
 			// listBox1
@@ -158,6 +198,12 @@ namespace LightShow
 			this->bb->TabIndex = 8;
 			this->bb->TextChanged += gcnew System::EventHandler(this, &Main::b_TextChanged);
 			// 
+			// timer1
+			// 
+			this->timer1->Enabled = true;
+			this->timer1->Interval = 1000;
+			this->timer1->Tick += gcnew System::EventHandler(this, &Main::timer1_Tick);
+			// 
 			// Main
 			// 
 			this->AutoScaleDimensions = System::Drawing::SizeF(6, 13);
@@ -203,9 +249,6 @@ namespace LightShow
 				colour = c;
 			}
 		}
-
-		Color colour;
-		bool save;
 
 		//Limit a value between a min and max
 		int checkRange( int val, int min, int max )
@@ -306,6 +349,19 @@ namespace LightShow
 			//Enable save mode
 			save = true;
 			button1->Text = "Save";
+		}
+
+		System::Void timer1_Tick(System::Object^  sender, System::EventArgs^  e) {
+
+			for (int i = 0; i < listBox1->Items->Count; i++)
+			{
+				Item ^item = (Item^)listBox1->Items[i];
+				
+				if (GetActiveWindowTitle()->Contains(item->str))
+				{
+					talk->Set_LED_RGB(0x01, 0x01, 0x02, Convert::ToByte(item->colour.R), Convert::ToByte(item->colour.G), Convert::ToByte(item->colour.B));
+				}
+			}
 		}
 	};
 }
