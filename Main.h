@@ -12,16 +12,32 @@ namespace LightShow
 	using namespace System::Drawing;
 	using namespace Newtonsoft::Json;
 	using namespace System::IO;
+	using namespace System::Diagnostics;
 
-	String ^GetActiveWindowTitle()
+	String ^GetActiveWindowTitle( bool title )
 	{
 		HWND handle = GetForegroundWindow();
 
-		wchar_t buffer[256];
-		if (GetWindowText(handle, buffer, 256) > 0)
+		if (!title)
 		{
-			return gcnew String(buffer);
+			DWORD pid;
+			GetWindowThreadProcessId(handle, &pid);
+
+			try
+			{
+				Process ^p = Process::GetProcessById((int)pid);
+				return p->ProcessName;
+			}
+			catch (Exception ^e) {
+			}
 		}
+		else {
+			wchar_t buffer[256];
+			if (GetWindowText(handle, buffer, 256) > 0)
+				return gcnew String(buffer);
+		}
+
+		return "";
 	}
 
 	public ref class Main : public System::Windows::Forms::Form
@@ -47,7 +63,8 @@ namespace LightShow
 				c->items.Add( item );
 			}
 
-			File::WriteAllText( Path::GetFullPath( "colours.json" ), JsonConvert::SerializeObject( c ) );
+			if( c->items.Count > 0 )
+				File::WriteAllText( Path::GetFullPath( "colours.json" ), JsonConvert::SerializeObject( c ) );
 			
 			if (talk)
 			{
@@ -82,6 +99,10 @@ namespace LightShow
 	private: System::Windows::Forms::Label^  label3;
 	private: System::Windows::Forms::NotifyIcon^  notifyIcon1;
 	private: System::Windows::Forms::Button^  button4;
+	private: System::Windows::Forms::Label^  label4;
+	private: System::Windows::Forms::Label^  label5;
+	private: System::Windows::Forms::Label^  label6;
+	private: System::Windows::Forms::Button^  button2;
 			 System::ComponentModel::IContainer^  components;
 
 	private:
@@ -110,6 +131,10 @@ namespace LightShow
 			this->label3 = (gcnew System::Windows::Forms::Label());
 			this->notifyIcon1 = (gcnew System::Windows::Forms::NotifyIcon(this->components));
 			this->button4 = (gcnew System::Windows::Forms::Button());
+			this->label4 = (gcnew System::Windows::Forms::Label());
+			this->label5 = (gcnew System::Windows::Forms::Label());
+			this->label6 = (gcnew System::Windows::Forms::Label());
+			this->button2 = (gcnew System::Windows::Forms::Button());
 			this->SuspendLayout();
 			// 
 			// listBox1
@@ -199,7 +224,7 @@ namespace LightShow
 			// label3
 			// 
 			this->label3->AutoSize = true;
-			this->label3->Location = System::Drawing::Point(12, 149);
+			this->label3->Location = System::Drawing::Point(63, 149);
 			this->label3->Name = L"label3";
 			this->label3->Size = System::Drawing::Size(35, 13);
 			this->label3->TabIndex = 9;
@@ -222,12 +247,53 @@ namespace LightShow
 			this->button4->UseVisualStyleBackColor = true;
 			this->button4->Click += gcnew System::EventHandler(this, &Main::button4_Click);
 			// 
+			// label4
+			// 
+			this->label4->AutoSize = true;
+			this->label4->Location = System::Drawing::Point(63, 162);
+			this->label4->Name = L"label4";
+			this->label4->Size = System::Drawing::Size(35, 13);
+			this->label4->TabIndex = 9;
+			this->label4->Text = L"label3";
+			// 
+			// label5
+			// 
+			this->label5->AutoSize = true;
+			this->label5->Location = System::Drawing::Point(9, 149);
+			this->label5->Name = L"label5";
+			this->label5->Size = System::Drawing::Size(30, 13);
+			this->label5->TabIndex = 9;
+			this->label5->Text = L"Title:";
+			// 
+			// label6
+			// 
+			this->label6->AutoSize = true;
+			this->label6->Location = System::Drawing::Point(9, 162);
+			this->label6->Name = L"label6";
+			this->label6->Size = System::Drawing::Size(48, 13);
+			this->label6->TabIndex = 9;
+			this->label6->Text = L"Process:";
+			// 
+			// button2
+			// 
+			this->button2->Location = System::Drawing::Point(240, 123);
+			this->button2->Name = L"button2";
+			this->button2->Size = System::Drawing::Size(75, 23);
+			this->button2->TabIndex = 11;
+			this->button2->Text = L"Clear";
+			this->button2->UseVisualStyleBackColor = true;
+			this->button2->Click += gcnew System::EventHandler(this, &Main::button2_Click);
+			// 
 			// Main
 			// 
 			this->AutoScaleDimensions = System::Drawing::SizeF(6, 13);
 			this->AutoScaleMode = System::Windows::Forms::AutoScaleMode::Font;
-			this->ClientSize = System::Drawing::Size(408, 170);
+			this->ClientSize = System::Drawing::Size(408, 180);
+			this->Controls->Add(this->button2);
 			this->Controls->Add(this->button4);
+			this->Controls->Add(this->label6);
+			this->Controls->Add(this->label4);
+			this->Controls->Add(this->label5);
 			this->Controls->Add(this->label3);
 			this->Controls->Add(this->bb);
 			this->Controls->Add(this->gg);
@@ -292,9 +358,12 @@ namespace LightShow
 			//colorB simple BLUE value 0x00 to 0xFF.
 
 			//Read colours
-			Colours ^c = JsonConvert::DeserializeObject<Colours^>( File::ReadAllText( Path::GetFullPath( "colours.json" ) ) );
-			for( int i = 0; i < c->items.Count; i++ )
-				listBox1->Items->Add( c->items[i] );
+			if (File::Exists(Path::GetFullPath("colours.json")))
+			{
+				Colours ^c = JsonConvert::DeserializeObject<Colours^>(File::ReadAllText(Path::GetFullPath("colours.json")));
+				for (int i = 0; i < c->items.Count; i++)
+					listBox1->Items->Add(c->items[i]);
+			}
 		}
 
 		System::Void button3_Click(System::Object^  sender, System::EventArgs^  e) {
@@ -403,17 +472,19 @@ namespace LightShow
 		}
 
 		System::Void timer1_Tick(System::Object^  sender, System::EventArgs^  e) {
-			String ^title = GetActiveWindowTitle();
-			if( !title )
+			String ^title = GetActiveWindowTitle(true);
+			String ^proc = GetActiveWindowTitle(false);
+			if( !title || !proc )
 				return;
 
 			label3->Text = title;
+			label4->Text = proc;
 
 			for (int i = 0; i < listBox1->Items->Count; i++)
 			{
 				Item ^item = (Item^)listBox1->Items[i];
 				
-				if (title->Contains(item->str))
+				if (title->Contains(item->str) || proc->Contains(item->str))
 				{
 					if( currentIndex != i )
 					{
@@ -433,6 +504,13 @@ namespace LightShow
 	
 		System::Void button4_Click(System::Object^  sender, System::EventArgs^  e) {
 			listBox1->Items->Remove( listBox1->SelectedItem );
+		}
+
+		System::Void button2_Click(System::Object^  sender, System::EventArgs^  e) {
+			//Reset values
+			name->Text = "";
+			colour = Color::FromArgb(255, 0, 0, 0);
+			updateColour(-1, -1, -1);
 		}
 	};
 }
