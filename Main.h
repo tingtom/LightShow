@@ -511,6 +511,10 @@ namespace LightShow
 			name->Text = "";
 			colour = Color::FromArgb(255, 0, 0, 0);
 			updateColour(-1, -1, -1);
+
+			//Remove save mode
+			save = false;
+			button1->Text = "Add";
 		}
 	};
 }
