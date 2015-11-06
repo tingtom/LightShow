@@ -10,6 +10,8 @@ namespace LightShow
 	using namespace System::Windows::Forms;
 	using namespace System::Data;
 	using namespace System::Drawing;
+	using namespace Newtonsoft::Json;
+	using namespace System::IO;
 
 	String ^GetActiveWindowTitle()
 	{
@@ -29,36 +31,29 @@ namespace LightShow
 		{
 			InitializeComponent();
 			updateColour(0,0,0);
-
-			//
-			talk = new CROCCAT_Talk();
-			if (!talk->init_ryos_talk())
-			{
-				if (MessageBox::Show("Error", "Couldn't find roccat device", MessageBoxButtons::OK) == System::Windows::Forms::DialogResult::OK)
-					Close();
-			}
-
-			talk->set_ryos_kb_SDKmode(TRUE);
-			talk->turn_off_all_LEDS();
-
-			//bZone The effect zones are Ambient (0x00) and Event (0x01). Use Ambient when you have a low rate of updates. Use Event for fast paced updates. (When in doubt: use Event (0x01)).
-			//bEffect Off(0x00), On(0x01), Blinking(0x02), Breathing(0x03), Heartbeat(0x04).
-			//bSpeed no Change(0x00), Slow(0x01), Normal(0x02), Fast(0x03).
-			//colorR simple RED value 0x00 to 0xFF.
-			//colorG simple GREEN value 0x00 to 0xFF.
-			//colorB simple BLUE value 0x00 to 0xFF.
-
-			talk->Set_LED_RGB(0x01, 0x01, 0x02, 0xFF, 0x00, 0x00);
+			currentIndex = -1;
 		}
 
 	protected:
 		~Main()
 		{
 			//t->RestoreLEDRGB();
-			talk->set_ryos_kb_SDKmode(FALSE);
+
+			//Save colours
+			Colours ^c = gcnew Colours();
+			for (int i = 0; i < listBox1->Items->Count; i++)
+			{
+				Item ^item = (Item^)listBox1->Items[i];
+				c->items.Add( item );
+			}
+
+			File::WriteAllText( Path::GetFullPath( "colours.json" ), JsonConvert::SerializeObject( c ) );
 			
 			if (talk)
+			{
+				talk->set_ryos_kb_SDKmode(FALSE);
 				delete talk;
+			}
 
 			if (components)
 				delete components;
@@ -68,6 +63,7 @@ namespace LightShow
 		Color colour;
 		bool save;
 		CROCCAT_Talk *talk;
+		int currentIndex;
 
 		System::Windows::Forms::ListBox^  listBox1;
 		System::Windows::Forms::TextBox^  name;
@@ -77,13 +73,16 @@ namespace LightShow
 		System::Windows::Forms::ColorDialog^  colorDialog1;
 
 		System::Windows::Forms::Button^  button1;
-		System::Windows::Forms::Button^  button2;
+
 		System::Windows::Forms::Button^  button3;
 		System::Windows::Forms::TextBox^  rr;
 		System::Windows::Forms::TextBox^  gg;
 		System::Windows::Forms::TextBox^  bb;
 		System::Windows::Forms::Timer^  timer1;
-		System::ComponentModel::IContainer^  components;
+	private: System::Windows::Forms::Label^  label3;
+	private: System::Windows::Forms::NotifyIcon^  notifyIcon1;
+	private: System::Windows::Forms::Button^  button4;
+			 System::ComponentModel::IContainer^  components;
 
 	private:
 
@@ -96,18 +95,21 @@ namespace LightShow
 		void InitializeComponent(void)
 		{
 			this->components = (gcnew System::ComponentModel::Container());
+			System::ComponentModel::ComponentResourceManager^  resources = (gcnew System::ComponentModel::ComponentResourceManager(Main::typeid));
 			this->listBox1 = (gcnew System::Windows::Forms::ListBox());
 			this->name = (gcnew System::Windows::Forms::TextBox());
 			this->label1 = (gcnew System::Windows::Forms::Label());
 			this->label2 = (gcnew System::Windows::Forms::Label());
 			this->colorDialog1 = (gcnew System::Windows::Forms::ColorDialog());
 			this->button1 = (gcnew System::Windows::Forms::Button());
-			this->button2 = (gcnew System::Windows::Forms::Button());
 			this->button3 = (gcnew System::Windows::Forms::Button());
 			this->rr = (gcnew System::Windows::Forms::TextBox());
 			this->gg = (gcnew System::Windows::Forms::TextBox());
 			this->bb = (gcnew System::Windows::Forms::TextBox());
 			this->timer1 = (gcnew System::Windows::Forms::Timer(this->components));
+			this->label3 = (gcnew System::Windows::Forms::Label());
+			this->notifyIcon1 = (gcnew System::Windows::Forms::NotifyIcon(this->components));
+			this->button4 = (gcnew System::Windows::Forms::Button());
 			this->SuspendLayout();
 			// 
 			// listBox1
@@ -154,16 +156,6 @@ namespace LightShow
 			this->button1->UseVisualStyleBackColor = true;
 			this->button1->Click += gcnew System::EventHandler(this, &Main::button1_Click);
 			// 
-			// button2
-			// 
-			this->button2->Location = System::Drawing::Point(163, 123);
-			this->button2->Name = L"button2";
-			this->button2->Size = System::Drawing::Size(75, 23);
-			this->button2->TabIndex = 6;
-			this->button2->Text = L"Cancel";
-			this->button2->UseVisualStyleBackColor = true;
-			this->button2->Click += gcnew System::EventHandler(this, &Main::button2_Click);
-			// 
 			// button3
 			// 
 			this->button3->Location = System::Drawing::Point(317, 75);
@@ -201,39 +193,108 @@ namespace LightShow
 			// timer1
 			// 
 			this->timer1->Enabled = true;
-			this->timer1->Interval = 1000;
+			this->timer1->Interval = 2000;
 			this->timer1->Tick += gcnew System::EventHandler(this, &Main::timer1_Tick);
+			// 
+			// label3
+			// 
+			this->label3->AutoSize = true;
+			this->label3->Location = System::Drawing::Point(12, 149);
+			this->label3->Name = L"label3";
+			this->label3->Size = System::Drawing::Size(35, 13);
+			this->label3->TabIndex = 9;
+			this->label3->Text = L"label3";
+			// 
+			// notifyIcon1
+			// 
+			this->notifyIcon1->Icon = (cli::safe_cast<System::Drawing::Icon^>(resources->GetObject(L"notifyIcon1.Icon")));
+			this->notifyIcon1->Text = L"LightShow";
+			this->notifyIcon1->Visible = true;
+			this->notifyIcon1->Click += gcnew System::EventHandler(this, &Main::notifyIcon1_Click);
+			// 
+			// button4
+			// 
+			this->button4->Location = System::Drawing::Point(163, 123);
+			this->button4->Name = L"button4";
+			this->button4->Size = System::Drawing::Size(71, 23);
+			this->button4->TabIndex = 10;
+			this->button4->Text = L"Remove";
+			this->button4->UseVisualStyleBackColor = true;
+			this->button4->Click += gcnew System::EventHandler(this, &Main::button4_Click);
 			// 
 			// Main
 			// 
 			this->AutoScaleDimensions = System::Drawing::SizeF(6, 13);
 			this->AutoScaleMode = System::Windows::Forms::AutoScaleMode::Font;
-			this->ClientSize = System::Drawing::Size(408, 160);
+			this->ClientSize = System::Drawing::Size(408, 170);
+			this->Controls->Add(this->button4);
+			this->Controls->Add(this->label3);
 			this->Controls->Add(this->bb);
 			this->Controls->Add(this->gg);
 			this->Controls->Add(this->rr);
 			this->Controls->Add(this->button3);
-			this->Controls->Add(this->button2);
 			this->Controls->Add(this->button1);
 			this->Controls->Add(this->label2);
 			this->Controls->Add(this->label1);
 			this->Controls->Add(this->name);
 			this->Controls->Add(this->listBox1);
+			this->FormBorderStyle = System::Windows::Forms::FormBorderStyle::FixedSingle;
+			this->Icon = (cli::safe_cast<System::Drawing::Icon^>(resources->GetObject(L"$this.Icon")));
+			this->MaximizeBox = false;
+			this->MinimizeBox = false;
 			this->Name = L"Main";
+			this->ShowInTaskbar = false;
 			this->Text = L"LightShow Thingy";
+			this->TopMost = true;
 			this->Load += gcnew System::EventHandler(this, &Main::Main_Load);
 			this->ResumeLayout(false);
 			this->PerformLayout();
 
 		}
 #pragma endregion
+		
+		ref class Item {
+			public:
+				String ^str;
+				Color colour;
+			
+				String ^ToString() override
+				{
+					return str;
+				}
+		};
+
+		ref class Colours {
+			public:
+				[JsonProperty("items")]
+				System::Collections::Generic::List<Item^> items;
+		};
 
 		System::Void Main_Load(System::Object^  sender, System::EventArgs^  e) {
+			talk = new CROCCAT_Talk();
+			if (!talk->init_ryos_talk())
+			{
+				if (MessageBox::Show("Couldn't find roccat device", "Error", MessageBoxButtons::OK) == System::Windows::Forms::DialogResult::OK)
+				{
+					Close();
+					return;
+				}
+			}
 
-		}
+			talk->set_ryos_kb_SDKmode(TRUE);
+			talk->turn_off_all_LEDS();
 
-		System::Void button2_Click(System::Object^  sender, System::EventArgs^  e) {
-			Close();
+			//bZone The effect zones are Ambient (0x00) and Event (0x01). Use Ambient when you have a low rate of updates. Use Event for fast paced updates. (When in doubt: use Event (0x01)).
+			//bEffect Off(0x00), On(0x01), Blinking(0x02), Breathing(0x03), Heartbeat(0x04).
+			//bSpeed no Change(0x00), Slow(0x01), Normal(0x02), Fast(0x03).
+			//colorR simple RED value 0x00 to 0xFF.
+			//colorG simple GREEN value 0x00 to 0xFF.
+			//colorB simple BLUE value 0x00 to 0xFF.
+
+			//Read colours
+			Colours ^c = JsonConvert::DeserializeObject<Colours^>( File::ReadAllText( Path::GetFullPath( "colours.json" ) ) );
+			for( int i = 0; i < c->items.Count; i++ )
+				listBox1->Items->Add( c->items[i] );
 		}
 
 		System::Void button3_Click(System::Object^  sender, System::EventArgs^  e) {
@@ -303,17 +364,6 @@ namespace LightShow
 			updateColour( -1, -1, stringToInt( bb->Text ) );
 		}
 
-		ref class Item {
-			public:
-				String ^str;
-				Color colour;
-			
-				String ^ToString() override
-				{
-					return str;
-				}
-		};
-
 		System::Void button1_Click(System::Object^  sender, System::EventArgs^  e) {
 			if( save )
 			{
@@ -323,24 +373,25 @@ namespace LightShow
 				//Remove save mode
 				save = false;
 				button1->Text = "Add";
+			}else{
+				//Add a new item
+				Item ^i = gcnew Item();
+				i->str = name->Text;
+				i->colour = colour;
 
-				//Reset values
-				name->Text = "";
-				colour = Color::FromArgb(255,0,0,0);
-				updateColour(-1,-1,-1);
-				return;
+				listBox1->Items->Add( i );
 			}
-
-			//Add a new item
-			Item ^i = gcnew Item();
-			i->str = name->Text;
-			i->colour = colour;
-
-			listBox1->DisplayMember = "str";
-			listBox1->Items->Add( i );
+			
+			//Reset values
+			name->Text = "";
+			colour = Color::FromArgb(255,0,0,0);
+			updateColour(-1,-1,-1);
 		}
 
 		System::Void listBox1_SelectedIndexChanged(System::Object^  sender, System::EventArgs^  e) {
+			if( !listBox1->SelectedItem )
+				return;
+
 			//Set data
 			Item ^i = (Item^)listBox1->SelectedItem;
 			name->Text = i->str;
@@ -352,16 +403,36 @@ namespace LightShow
 		}
 
 		System::Void timer1_Tick(System::Object^  sender, System::EventArgs^  e) {
+			String ^title = GetActiveWindowTitle();
+			if( !title )
+				return;
+
+			label3->Text = title;
 
 			for (int i = 0; i < listBox1->Items->Count; i++)
 			{
 				Item ^item = (Item^)listBox1->Items[i];
 				
-				if (GetActiveWindowTitle()->Contains(item->str))
+				if (title->Contains(item->str))
 				{
-					talk->Set_LED_RGB(0x01, 0x01, 0x02, Convert::ToByte(item->colour.R), Convert::ToByte(item->colour.G), Convert::ToByte(item->colour.B));
+					if( currentIndex != i )
+					{
+						talk->Set_LED_RGB(0x01, 0x01, 0x02, Convert::ToByte(item->colour.R), Convert::ToByte(item->colour.G), Convert::ToByte(item->colour.B));
+						currentIndex = i;
+					}
 				}
 			}
+		}
+
+		System::Void notifyIcon1_Click(System::Object^  sender, System::EventArgs^  e) {
+			if( Visible )
+				Hide();
+			else
+				Show();
+		}
+	
+		System::Void button4_Click(System::Object^  sender, System::EventArgs^  e) {
+			listBox1->Items->Remove( listBox1->SelectedItem );
 		}
 	};
 }
